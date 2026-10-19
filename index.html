@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Safety Check: link and password checker</title>
+<meta name="description" content="Free learning tools that spot red flags in links and test password strength. Everything runs in your browser, and nothing you type is sent anywhere.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%A1%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<style>
+  :root { --bg:#f3efe6; --card:#fff; --ink:#1f2933; --muted:#6b7280; --line:#e2ddd0;
+          --accent:#0f766e; --good:#15803d; --warn:#b45309; --bad:#b91c1c; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f1512; --card:#18211d; --ink:#e8f3ee; --muted:#93a8a0; --line:#2a3a33;
+            --accent:#2dd4bf; --good:#4ade80; --warn:#fbbf24; --bad:#f87171; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:16px/1.5 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+  main { max-width:680px; margin:0 auto; padding:28px 18px 60px; }
+  h1 { font-family:Georgia, serif; color:var(--accent); margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 20px; }
+  .tabs { display:flex; gap:8px; margin-bottom:14px; }
+  .tabs button { flex:1; padding:10px; border:1px solid var(--line); background:var(--card);
+                 color:var(--ink); border-radius:8px; font-size:15px; cursor:pointer; }
+  .tabs button[aria-selected=true] { background:var(--accent); color:var(--card); border-color:var(--accent); font-weight:600; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; }
+  input[type=text], input[type=password] { width:100%; padding:12px; font-size:17px; border-radius:8px;
+         border:1px solid var(--line); background:var(--bg); color:var(--ink); }
+  input:focus-visible, button:focus-visible, summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .row { display:flex; gap:8px; }
+  .go { padding:0 18px; border:0; border-radius:8px; background:var(--accent); color:var(--card);
+        font-size:16px; font-weight:600; cursor:pointer; }
+  .examples { margin-top:10px; font-size:14px; color:var(--muted); }
+  .examples button { background:none; border:1px solid var(--line); color:var(--ink); border-radius:6px;
+                     padding:4px 10px; margin-left:6px; cursor:pointer; font-size:14px; }
+  .verdict { margin:16px 0 8px; font-size:20px; font-weight:700; }
+  .bar { height:10px; background:var(--line); border-radius:5px; overflow:hidden; }
+  .bar div { height:100%; width:0; transition:width .2s, background .2s; }
+  ul { list-style:none; padding:0; margin:12px 0 0; }
+  li { padding:8px 0; border-bottom:1px solid var(--line); }
+  li:last-child { border-bottom:0; }
+  li.ok::before { content:"\2713  "; color:var(--good); font-weight:700; }
+  li.no::before { content:"\2717  "; color:var(--bad); font-weight:700; }
+  li.info::before { content:"i  "; color:var(--muted); font-weight:700; }
+  .why { display:block; color:var(--muted); font-size:14px; margin-top:2px; }
+  .hint { color:var(--muted); font-size:14px; margin-top:14px; }
+  .show { display:block; margin-top:8px; font-size:14px; color:var(--muted); }
+  details { margin-top:22px; }
+  summary { cursor:pointer; font-weight:600; color:var(--accent); }
+  details ul { list-style:disc; padding-left:22px; }
+  details li { border:0; padding:3px 0; }
+  [hidden] { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Safety Check</h1>
+  <p class="sub">Two small security tools for learning what red flags look like. Everything runs in your browser, and nothing you type is sent anywhere.</p>
+
+  <div class="tabs" role="tablist">
+    <button id="tab-link" role="tab" aria-selected="true" aria-controls="link-panel">Link checker</button>
+    <button id="tab-pass" role="tab" aria-selected="false" aria-controls="pass-panel">Password checker</button>
+  </div>
+
+  <!-- LINK CHECKER -->
+  <section id="link-panel" class="card" role="tabpanel" aria-labelledby="tab-link">
+    <div class="row">
+      <input type="text" id="link-input" aria-label="Link or domain to check"
+             placeholder="Paste a link or domain, e.g. paypal-secure-login.xyz"
+             autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button class="go" id="link-go">Check</button>
+    </div>
+    <div class="examples">Try an example:
+      <button id="ex-bad">suspicious</button><button id="ex-good">normal</button>
+    </div>
+    <div id="link-result" aria-live="polite" hidden>
+      <div class="verdict" id="link-verdict"></div>
+      <ul id="link-list"></ul>
+    </div>
+    <p class="hint">A learning tool, not a security product. A link can pass every check and still be dangerous, and a safe link can trip a check. When unsure, don’t click: type the website’s address yourself.</p>
+  </section>
+
+  <!-- PASSWORD CHECKER -->
+  <section id="pass-panel" class="card" role="tabpanel" aria-labelledby="tab-pass" hidden>
+    <input type="password" id="pass-input" aria-label="Password to test"
+           placeholder="Type a made-up password to test" autocomplete="new-password" spellcheck="false">
+    <label class="show"><input type="checkbox" id="pass-show"> Show what I type</label>
+    <div id="pass-result" aria-live="polite" hidden>
+      <div class="verdict" id="pass-verdict"></div>
+      <div class="bar"><div id="pass-bar"></div></div>
+      <ul id="pass-list"></ul>
+      <p class="hint" id="pass-crack"></p>
+    </div>
+    <p class="hint">Never type a password you really use into a tool you don’t fully trust. Use made-up examples.</p>
+  </section>
+
+  <details>
+    <summary>About these tools</summary>
+    <ul>
+      <li><strong>Privacy:</strong> the checks run as JavaScript inside your browser. Nothing is uploaded, saved, or tracked by this page.</li>
+      <li><strong>The link checker</strong> looks only at the text of the link. It doesn’t visit the site, so it can’t tell whether the site is actually malicious.</li>
+      <li><strong>The password checker</strong> uses simple rules and a short list of common passwords. The crack-time guess is rough and assumes an attacker trying 10 billion guesses a second.</li>
+      <li><strong>Better habits than any tool:</strong> use a different password for every account, let a password manager create and store them, and turn on two-factor login wherever it’s offered.</li>
+      <li><strong>Made by a Zakria</strong> learning cybersecurity. Spot a mistake or a missing red flag? Tell the author so it can be fixed.</li>
+    </ul>
+  </details>
+</main>
+
+<script>
+// ===================== CHECKING LOGIC (no page code in here) =====================
+
+// ---------- Link checker ----------
+const SUSPICIOUS_WORDS = ["login", "signin", "verify", "secure", "update", "account", "password", "bank", "wallet"];
+const RISKY_ENDINGS = [".zip", ".mov", ".xyz", ".top", ".click", ".gq", ".tk", ".ml", ".cf"];
+const BRANDS = ["paypal", "google", "apple", "microsoft", "amazon", "netflix", "facebook", "instagram"];
+const SECOND_LEVEL = ["co", "com", "org", "net", "gov", "ac", "edu"];
+
+// example.com -> "example";  example.co.uk -> "example"
+function registeredLabel(labels) {
+  const n = labels.length;
+  if (n >= 3 && labels[n - 1].length === 2 && SECOND_LEVEL.includes(labels[n - 2])) return labels[n - 3];
+  return n >= 2 ? labels[n - 2] : labels[0];
+}
+
+function checkLink(raw) {
+  const text = raw.trim();
+  if (!text) return null;
+
+  const hadScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(text);
+  let url;
+  try { url = new URL(hadScheme ? text : "https://" + text); } catch (e) { return null; }
+
+  const host = url.hostname.toLowerCase();
+  const isIP = /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.startsWith("[");
+  if (!host.includes(".") && !isIP) return null;           // "hello" isn't a website address
+
+  const labels = host.split(".");
+  const main = registeredLabel(labels);
+  const checks = [];                                        // {state, text, why}
+  const add = (state, message, why) => checks.push({ state, text: message, why });
+
+  if (!hadScheme) {
+    add("info", "You didn’t type http:// or https://, so encryption can’t be checked.",
+        "Paste the full link to check this. Even then, a padlock only means the connection is private, not that the site is honest.");
+  } else if (url.protocol === "https:") {
+    add("ok", "Uses https (the connection is encrypted)",
+        "Encryption stops others reading the traffic. Scammers can get it too, so it isn’t proof of safety.");
+  } else {
+    add("no", "Doesn’t use https, so the connection isn’t encrypted",
+        "Anything typed on an http page, like a password, can be read by others on the network.");
+  }
+
+  const hasUserInfo = url.username !== "" || url.password !== "";
+  add(hasUserInfo ? "no" : "ok",
+      hasUserInfo ? "Has a user name before an “@”, which can hide the real site" : "No “@” trick hiding the real destination",
+      "In a link like paypal.com@evil.com, the browser actually goes to evil.com.");
+
+  add(text.length > 75 ? "no" : "ok",
+      text.length > 75 ? "Very long link" : "Reasonable length",
+      "Scammers pad links so the part that matters is hard to see.");
+
+  add(isIP ? "no" : "ok",
+      isIP ? "Uses a raw IP address instead of a name" : "Uses a name, not a raw IP address",
+      "Real companies use their names. Raw addresses are common in malware and scam links.");
+
+  const hasPuny = labels.some(l => l.startsWith("xn--"));
+  add(hasPuny ? "no" : "ok",
+      hasPuny ? "Uses look-alike characters (xn-- means special letters)" : "No look-alike characters",
+      "Letters from other alphabets can look identical to English ones, like a Cyrillic “а” for an “a”.");
+
+  add(labels.length > 4 ? "no" : "ok",
+      labels.length > 4 ? "Lots of subdomains" : "Normal number of subdomains",
+      "Long chains like login.secure.account.example.com are used to bury the real site name.");
+
+  const hyphens = (main.match(/-/g) || []).length;
+  add(hyphens >= 2 ? "no" : "ok",
+      hyphens >= 2 ? "Several hyphens in the site name" : "Few hyphens in the site name",
+      "Names like paypal-secure-login are a classic fake-site pattern.");
+
+  const mixed = /[a-z]\d|\d[a-z]/.test(main) && !/^\d+$/.test(main);
+  add(mixed ? "no" : "ok",
+      mixed ? "Letters mixed with numbers in the site name (like paypa1)" : "No letters mixed with numbers in the site name",
+      "Swapping a letter for a number is a common look-alike trick. Some real sites do this too, so it’s only a hint.");
+
+  const badEnding = RISKY_ENDINGS.find(end => host.endsWith(end));
+  add(badEnding ? "no" : "ok",
+      badEnding ? "Ends in " + badEnding + ", an extension often abused by scammers" : "Doesn’t end in an extension often abused by scammers",
+      "Cheap extensions attract scammers, though plenty of honest sites use them too.");
+
+  const words = SUSPICIOUS_WORDS.filter(w => (host + url.pathname).toLowerCase().includes(w));
+  add(words.length ? "no" : "ok",
+      words.length ? "Contains pressure words: " + words.join(", ") : "No pressure words like login, verify or secure",
+      "Fake sites love words that make you feel you must act now.");
+
+  const fakeBrands = BRANDS.filter(b => host.includes(b) && main !== b);
+  add(fakeBrands.length ? "no" : "ok",
+      fakeBrands.length ? "Uses the name " + fakeBrands.join(", ") + " but isn’t that company’s real site" : "Doesn’t pretend to be a big brand",
+      "A real site’s name sits just before the extension: paypal.com is real, paypal.evil.com is not.");
+
+  return { checks, problems: checks.filter(c => c.state === "no").length + (hasUserInfo ? 1 : 0) };
+}
+
+// ---------- Password checker ----------
+const COMMON = ["password", "passw0rd", "123456", "12345678", "111111", "qwerty", "abc123", "letmein",
+                "welcome", "admin", "login", "iloveyou", "monkey", "dragon", "football", "sunshine", "princess"];
+
+function hasRun(p) {
+  const s = p.toLowerCase();
+  for (let i = 0; i < s.length - 2; i++) {
+    const a = s.charCodeAt(i), b = s.charCodeAt(i + 1), c = s.charCodeAt(i + 2);
+    if ((b === a + 1 && c === b + 1) || (b === a && c === b)) return true;   // abc, 123, aaa
+  }
+  return false;
+}
+
+function describeTime(seconds) {
+  if (seconds < 1) return "less than a second";
+  if (seconds > 31536000 * 1e6) return "longer than a million years";
+  const units = [["years", 31536000], ["days", 86400], ["hours", 3600], ["minutes", 60], ["seconds", 1]];
+  for (const [name, size] of units) {
+    if (seconds >= size) return Math.round(seconds / size).toLocaleString("en-US") + " " + name;
+  }
+}
+
+function checkPassword(p) {
+  const upper = /[A-Z]/.test(p), lower = /[a-z]/.test(p), digit = /\d/.test(p), symbol = /[^A-Za-z0-9]/.test(p);
+  const hasCommon = COMMON.some(w => p.toLowerCase().includes(w));
+  const checks = [
+    { ok: p.length >= 12, text: "At least 12 characters",
+      why: "Every extra character multiplies the guesses an attacker needs. Length matters more than cleverness." },
+    { ok: upper && lower, text: "Mixes uppercase and lowercase letters",
+      why: "Adds possible characters, though it helps less than people think." },
+    { ok: digit, text: "Contains a number", why: "Another set of characters an attacker has to try." },
+    { ok: symbol, text: "Contains a symbol like ! or ?", why: "The biggest character set, but only if it isn’t just tacked on the end." },
+    { ok: !hasCommon, text: "Has no very common password or word in it",
+      why: "Attackers try lists of leaked and common passwords before anything else." },
+    { ok: !hasRun(p), text: "No simple runs like abc, 123 or aaa", why: "Patterns like these are among the first guesses." },
+  ];
+
+  let score = checks.filter(c => c.ok).length;
+  if (p.length >= 16) score += 1;
+  if (hasCommon) score = Math.min(score, 2);
+
+  let pool = 0;
+  if (lower) pool += 26;
+  if (upper) pool += 26;
+  if (digit) pool += 10;
+  if (symbol) pool += 32;
+  const seconds = Math.pow(pool || 1, p.length) / 1e10 / 2;   // average case
+
+  return { checks, score, seconds, weakPattern: hasCommon || hasRun(p) };
+}
+
+// ===================== PAGE WIRING =====================
+function fillList(id, items) {
+  const list = document.getElementById(id);
+  list.innerHTML = "";
+  for (const item of items) {
+    const li = document.createElement("li");
+    li.className = item.state;
+    li.textContent = item.text;                  // textContent: typed text can never run as code
+    if (item.why) {
+      const why = document.createElement("span");
+      why.className = "why";
+      why.textContent = item.why;
+      li.appendChild(why);
+    }
+    list.appendChild(li);
+  }
+}
+
+// Tabs
+function showTab(name) {
+  for (const key of ["link", "pass"]) {
+    const selected = key === name;
+    document.getElementById("tab-" + key).setAttribute("aria-selected", selected);
+    document.getElementById(key + "-panel").hidden = !selected;
+  }
+  document.getElementById(name === "link" ? "link-input" : "pass-input").focus();
+}
+document.getElementById("tab-link").onclick = () => showTab("link");
+document.getElementById("tab-pass").onclick = () => showTab("pass");
+
+// Link checker
+function runLinkCheck() {
+  const result = checkLink(document.getElementById("link-input").value);
+  const verdict = document.getElementById("link-verdict");
+  document.getElementById("link-result").hidden = false;
+
+  if (!result) {
+    verdict.textContent = "That doesn’t look like a website address.";
+    verdict.style.color = "var(--muted)";
+    fillList("link-list", []);
+    return;
+  }
+
+  const n = result.problems;
+  if (n === 0) { verdict.textContent = "Low risk: no red flags found"; verdict.style.color = "var(--good)"; }
+  else if (n <= 2) { verdict.textContent = "Medium risk: " + n + (n === 1 ? " red flag" : " red flags"); verdict.style.color = "var(--warn)"; }
+  else { verdict.textContent = "High risk: " + n + " red flags. Don’t click it."; verdict.style.color = "var(--bad)"; }
+  fillList("link-list", result.checks);
+}
+document.getElementById("link-go").onclick = runLinkCheck;
+document.getElementById("link-input").addEventListener("keydown", e => { if (e.key === "Enter") runLinkCheck(); });
+document.getElementById("ex-bad").onclick = () => { document.getElementById("link-input").value = "http://paypal-secure-login.xyz/verify"; runLinkCheck(); };
+document.getElementById("ex-good").onclick = () => { document.getElementById("link-input").value = "https://www.wikipedia.org"; runLinkCheck(); };
+
+// Password checker
+document.getElementById("pass-show").addEventListener("change", e => {
+  document.getElementById("pass-input").type = e.target.checked ? "text" : "password";
+});
+
+document.getElementById("pass-input").addEventListener("input", e => {
+  const p = e.target.value, box = document.getElementById("pass-result");
+  if (!p) { box.hidden = true; return; }
+  box.hidden = false;
+
+  const r = checkPassword(p);
+  const level = r.score <= 2 ? ["Weak", "var(--bad)", 25] : r.score <= 4 ? ["Okay", "var(--warn)", 55]
+              : r.score <= 6 ? ["Strong", "var(--good)", 85] : ["Very strong", "var(--good)", 100];
+
+  const verdict = document.getElementById("pass-verdict");
+  verdict.textContent = level[0];
+  verdict.style.color = level[1];
+
+  const bar = document.getElementById("pass-bar");
+  bar.style.width = level[2] + "%";
+  bar.style.background = level[1];
+
+  fillList("pass-list", r.checks.map(c => ({ state: c.ok ? "ok" : "no", text: c.text, why: c.why })));
+
+  document.getElementById("pass-crack").textContent = r.weakPattern
+    ? "Attackers try common words and simple patterns first, so this could be cracked quickly, however long it looks."
+    : "Rough guess: an attacker trying 10 billion guesses a second would need about " + describeTime(r.seconds) +
+      ". This ignores smart guessing, so treat it as a ceiling, not a promise.";
+});
+</script>
+</body>
+</html>
